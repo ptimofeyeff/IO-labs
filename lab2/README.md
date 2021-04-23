@@ -122,7 +122,7 @@ root# dmesg
 
 Копирование между разделами виртуального диска (из /dev/mydisk1 в /dev/mydisk5) -- 15.2 MB/s:
 ```shell
-# dd if=/dev/mydisk1 of=/dev/mydisk5 bs=512 count=20479 oflag=direct
+# dd if=/dev/mydisk5 of=/dev/mydisk6 bs=512 count=20479 oflag=direct
 20479+0 records in
 20479+0 records out
 10485248 bytes (10 MB, 10 MiB) copied, 0.690898 s, 15.2 MB/s
@@ -130,7 +130,7 @@ root# dmesg
 
 Копирование из реального диска в виртуальный диск (из /dev/sda1 в /dev/mydisk5) -- 16.2 MB/s:
 ```shell
-# dd if=/dev/sda1 of=/dev/mydisk5 bs=512 count=20479 oflag=direct
+# dd if=/dev/sda of=/dev/mydisk1 bs=512 count=20479 oflag=direct
 20479+0 records in
 20479+0 records out
 10485248 bytes (10 MB, 10 MiB) copied, 0.64731 s, 16.2 MB/s
