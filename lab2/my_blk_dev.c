@@ -63,12 +63,12 @@ static PartTable def_part_table =
 		start_sec: 0x2,
 		start_head: 0x0,
 		start_cyl: 0x0,
-		part_type: 0x83,
+		part_type: 0x83, // primary partition type
 		end_head: 0x3,
 		end_sec: 0x20,
 		end_cyl: 0x9F,
 		abs_start_sec: 0x1,
-		sec_in_part: 0xF000 // 10Mbyte
+		sec_in_part: 0xF000 // 30Mbyte
 	},
 	{
 		boot_type: 0x00,
@@ -80,7 +80,7 @@ static PartTable def_part_table =
 		end_head: 0xB,
 		end_cyl: 0x9F,
 		abs_start_sec: 0xF001,
-		sec_in_part: 0xA000
+		sec_in_part: 0xA000 // 20Mbyte
 	}
 };
 static unsigned int def_log_part_br_abs_start_sector[] = {0xF001, 0x14002};
