@@ -120,17 +120,17 @@ root# dmesg
 ```
 ## Профилирование
 
-Копирование между разделами виртуального диска (из /dev/mydisk1 в /dev/mydisk5) -- 15.2 MB/s:
+Копирование из реального диска в виртуальный диск  (из /dev/mydisk1 в /dev/mydisk5) -- 30.3 MB/s:
 ```shell
 # dd if=/dev/mydisk5 of=/dev/mydisk6 bs=512 count=20479 oflag=direct
 20479+0 records in
 20479+0 records out
-10485248 bytes (10 MB, 10 MiB) copied, 0.690898 s, 15.2 MB/s
+10485248 bytes (10 MB, 10 MiB) copied, 0.346568 s, 30.3 MB/s
 ```
 
-Копирование из реального диска в виртуальный диск (из /dev/sda1 в /dev/mydisk5) -- 16.2 MB/s:
+Копирование между разделами виртуального диска (из /dev/sda1 в /dev/mydisk5) -- 30.8 MB/s:
 ```shell
 # dd if=/dev/sda of=/dev/mydisk1 bs=512 count=20479 oflag=direct
 20479+0 records in
 20479+0 records out
-10485248 bytes (10 MB, 10 MiB) copied, 0.64731 s, 16.2 MB/s
+10485248 bytes (10 MB, 10 MiB) copied, 0.340378 s, 30.8 MB/s
