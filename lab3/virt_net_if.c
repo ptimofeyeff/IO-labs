@@ -17,10 +17,8 @@ module_param(link, charp, 0);
 
 static char* ifname = "vni%d";
 
-static int port_dst = 0;
-static int control_port = 15;
+static int port_dst = 15;
 
-static unsigned char data[1500];
 static struct net_device_stats stats;
 static struct proc_dir_entry* entry;
 
@@ -39,69 +37,31 @@ struct priv {
 static char check_frame(struct sk_buff *skb, unsigned char data_shift) {
 	struct iphdr *ip = (struct iphdr *)skb_network_header(skb);
 	struct udphdr *udp = NULL;
-	
+
+	//printk("type=%d ? 5%d", ip->protocol, IPPROTO_UDP);
+
 	if (IPPROTO_UDP == ip->protocol) {
 		udp = (struct udphdr*)((unsigned char*)ip + (ip->ihl * 4));
 
-		if(ntohs(udp->dest) == control_port) {
-			int data_len = 0;
-			unsigned char *control_data_ptr = NULL;
-			data_len = ntohs(udp->len) - sizeof(struct udphdr);
-			control_data_ptr = (unsigned char*) (skb->data + sizeof(struct iphdr) + sizeof(struct udphdr)) + data_shift;
-			memcpy(data, control_data_ptr, data_len);
-			data[data_len] = '\0';
-			int i = 0;
-			int new_port = 0;
+		if (ntohs(udp->dest) == port_dst) {
+            if(udp_history == NULL){
+                udp_history = kmalloc(sizeof(struct net_history), GFP_KERNEL);
+                udp_history->len = 0;
+                udp_history->port_src = NULL;
+                udp_history->port_dst = NULL;
+            }
+            udp_history->len += 1;
+            udp_history->port_src = krealloc(udp_history->port_src, udp_history->len*sizeof(int), GFP_KERNEL);
+            udp_history->port_dst = krealloc(udp_history->port_dst, udp_history->len*sizeof(int), GFP_KERNEL);
 
-			while (i < data_len) {
-				if ((int) data[i] >= '0' && (int) data[i] <= '9') {
-					new_port = new_port*10+((int) data[i] - '0');
-					i++;
-				} else {
-					break;
-				}
-			}
-			if (new_port == 0) {
-				printk(KERN_INFO "Message to control port should start with number\n");
-			} else {
-				port_dst = new_port;
-				printk(KERN_INFO "Data resive port change to %d\n", new_port);
-			}	
-			return 3;
+            udp_history->port_src[udp_history->len-1] = ntohs(udp->source);
+            udp_history->port_dst[udp_history->len-1] = ntohs(udp->dest);
 
-		} else if (ntohs(udp->dest) == port_dst) {
-			if(udp_history == NULL){
-				udp_history = kmalloc(sizeof(struct net_history), GFP_KERNEL);
-				if (udp_history == NULL) {
-					printk(KERN_ERR "Error: not enough memory.\n");
-					return 0;
-			    	} else {
-					udp_history->len = 0;
-					udp_history->port_src = NULL;
-					udp_history->port_dst = NULL;
-				}
-	    		}
-
-			int *new_buf_src = NULL;
-			int *new_buf_dst = NULL;
-			new_buf_src = krealloc(udp_history->port_src, (udp_history->len+1)*sizeof(int), GFP_KERNEL);
-			new_buf_dst = krealloc(udp_history->port_dst, (udp_history->len+1)*sizeof(int), GFP_KERNEL);
-			if (new_buf_src == NULL || new_buf_dst == NULL) {
-				printk(KERN_ERR "Error: not enough memory.\n");
-				return 0;
-			}
-	    		udp_history->len += 1;
-	    		udp_history->port_src = new_buf_src;
-	    		udp_history->port_dst = new_buf_dst;
-			
-	    		udp_history->port_src[udp_history->len-1] = ntohs(udp->source);
-	    		udp_history->port_dst[udp_history->len-1] = ntohs(udp->dest);
-
-			printk(KERN_INFO "Captured UDP datagram, IPsrc: %d.%d.%d.%d PORTsrc: %d\n",
+			printk("Captured UDP datagram, IPsrc: %d.%d.%d.%d PORTsrc: %d\n",
 					ntohl(ip->saddr) >> 24, (ntohl(ip->saddr) >> 16) & 0x00FF,
 					(ntohl(ip->saddr) >> 8) & 0x0000FF, (ntohl(ip->saddr)) & 0x000000FF, ntohs(udp->source));
-			
-			printk(KERN_INFO "IPdst: %d.%d.%d.%d PORTdst: %d\n",
+
+			printk("IPdst: %d.%d.%d.%d PORTdst: %d\n",
 					ntohl(ip->daddr) >> 24, (ntohl(ip->daddr) >> 16) & 0x00FF,
 					(ntohl(ip->daddr) >> 8) & 0x0000FF, (ntohl(ip->daddr)) & 0x000000FF, ntohs(udp->dest));
 			return 2;
@@ -121,13 +81,13 @@ return RX_HANDLER_PASS;
 
 static int open(struct net_device *dev) {
 	netif_start_queue(dev);
-	printk(KERN_INFO "%s: device opened\n", dev->name);
+	printk(KERN_INFO "%s: device opened", dev->name);
 	return 0; 
 } 
 
 static int stop(struct net_device *dev) {
 	netif_stop_queue(dev);
-	printk(KERN_INFO "%s: device closed\n", dev->name);
+	printk(KERN_INFO "%s: device closed", dev->name);
 	return 0; 
 } 
 
@@ -190,7 +150,7 @@ static ssize_t proc_read(struct file *file, char __user * ubuf, size_t count, lo
       	}
 
     copy_to_user(ubuf, title, title_offset);    
-    
+
 	for (i=0; i<udp_history->len; i++)
 	{
 		int_to_str(udp_history->port_src[i], out_buf, '\t');
@@ -212,7 +172,7 @@ static ssize_t proc_read(struct file *file, char __user * ubuf, size_t count, lo
 
 static ssize_t proc_write(struct file *file, const char __user * ubuf, size_t count, loff_t* ppos) 
 {
-  printk(KERN_DEBUG "Attempt to write proc file\n");
+  printk(KERN_DEBUG "Attempt to write proc file");
   return -1;
 }
 
@@ -241,34 +201,30 @@ static void setup(struct net_device *dev) {
 } 
 
 int __init vni_init(void) {
-    udp_history = kmalloc(sizeof(struct net_history), GFP_KERNEL);
-    if (udp_history == NULL){
-	    printk(KERN_ERR "Error: not enough memory.\n");
-	    return -ENOMEM;
-    } else {	   
-	    udp_history->len = 0;
-	    udp_history->port_src = NULL;
-	    udp_history->port_dst = NULL;	
-    }
     entry = proc_create("vni0", 0444, NULL, &fops);
     printk(KERN_INFO "%s: proc file is created\n", THIS_MODULE->name);
+
+    udp_history = kmalloc(sizeof(struct net_history), GFP_KERNEL);
+    udp_history->len = 0;
+    udp_history->port_src = NULL;
+    udp_history->port_dst = NULL;	
 
     int err = 0;
 	struct priv *priv;
 	child = alloc_netdev(sizeof(struct priv), ifname, NET_NAME_UNKNOWN, setup);
 	if (child == NULL) {
-		printk(KERN_ERR "%s: allocate error\n", THIS_MODULE->name);
+		printk(KERN_ERR "%s: allocate error", THIS_MODULE->name);
 		return -ENOMEM;
 	}
 	priv = netdev_priv(child);
 	priv->parent = __dev_get_by_name(&init_net, link); //parent interface
 	if (!priv->parent) {
-		printk(KERN_ERR "%s: no such net: %s\n", THIS_MODULE->name, link);
+		printk(KERN_ERR "%s: no such net: %s", THIS_MODULE->name, link);
 		free_netdev(child);
 		return -ENODEV;
 	}
 	if (priv->parent->type != ARPHRD_ETHER && priv->parent->type != ARPHRD_LOOPBACK) {
-		printk(KERN_ERR "%s: illegal net type\n", THIS_MODULE->name); 
+		printk(KERN_ERR "%s: illegal net type", THIS_MODULE->name); 
 		free_netdev(child);
 		return -EINVAL;
 	}
@@ -277,7 +233,7 @@ int __init vni_init(void) {
 	memcpy(child->dev_addr, priv->parent->dev_addr, ETH_ALEN);
 	memcpy(child->broadcast, priv->parent->broadcast, ETH_ALEN);
 	if ((err = dev_alloc_name(child, child->name))) {
-		printk(KERN_ERR "%s: allocate name, error %i\n", THIS_MODULE->name, err);
+		printk(KERN_ERR "%s: allocate name, error %i", THIS_MODULE->name, err);
 		free_netdev(child);
 		return -EIO;
 	}
@@ -286,26 +242,24 @@ int __init vni_init(void) {
 	rtnl_lock();
 	netdev_rx_handler_register(priv->parent, &handle_frame, NULL);
 	rtnl_unlock();
-	printk(KERN_INFO "Module %s loaded\n", THIS_MODULE->name);
-	printk(KERN_INFO "%s: create link %s\n", THIS_MODULE->name, child->name);
-	printk(KERN_INFO "%s: registered rx handler for %s\n", THIS_MODULE->name, priv->parent->name); 
+	printk(KERN_INFO "Module %s loaded", THIS_MODULE->name);
+	printk(KERN_INFO "%s: create link %s", THIS_MODULE->name, child->name);
+	printk(KERN_INFO "%s: registered rx handler for %s", THIS_MODULE->name, priv->parent->name); 
 
     return 0;
 }
 
 void __exit vni_exit(void) {
 	struct priv *priv = netdev_priv(child);
-	kfree(udp_history);
-
 	if (priv->parent) {
 		rtnl_lock();
 		netdev_rx_handler_unregister(priv->parent);
 		rtnl_unlock();
-		printk(KERN_INFO "%s: unregister rx handler for %s\n", THIS_MODULE->name, priv->parent->name);
+		printk(KERN_INFO "%s: unregister rx handler for %s", THIS_MODULE->name, priv->parent->name);
 	}
 	unregister_netdev(child);
 	free_netdev(child);
-	printk(KERN_INFO "Module %s unloaded\n", THIS_MODULE->name); 
+	printk(KERN_INFO "Module %s unloaded", THIS_MODULE->name); 
 
     proc_remove(entry);
 	printk(KERN_INFO "%s: proc file is deleted\n", THIS_MODULE->name);
@@ -316,4 +270,4 @@ module_exit(vni_exit);
 
 MODULE_AUTHOR("Pavel Timofeev");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Intersept and filter of traffic");
+MODULE_DESCRIPTION("Description");
