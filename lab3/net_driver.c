@@ -9,6 +9,8 @@
 #include <linux/udp.h>
 #include <linux/proc_fs.h>
 
+#define DEST_PORT 8081
+
 static struct proc_dir_entry* entry;
 static char* link = "lo";
 module_param(link, charp, 0);
@@ -31,12 +33,14 @@ static char check_frame(struct sk_buff *skb, unsigned char data_shift) {
 
      if (IPPROTO_UDP == ip->protocol) {
         udp = (struct udphdr*)((unsigned char*)ip + (ip->ihl * 4));
-       	data_len = ntohs(udp->len) - sizeof(struct udphdr);
-    	user_data_ptr = (unsigned char *)(skb->data + sizeof(struct iphdr)  + sizeof(struct udphdr)) + data_shift;
-    	memcpy(data, user_data_ptr, data_len);
-        data[data_len] = '\0';
-        printk("Source port: %d; Destination port: %d\n", ntohs(udp->source), ntohs(udp->dest));            
-        return 1;
+        if (ntohs(udp->dest) == DEST_PORT) {
+                data_len = ntohs(udp->len) - sizeof(struct udphdr);
+                user_data_ptr = (unsigned char *)(skb->data + sizeof(struct iphdr)  + sizeof(struct udphdr)) + data_shift;
+                memcpy(data, user_data_ptr, data_len);
+                data[data_len] = '\0';
+                printk("Source port: %d; Destination port: %d\n", ntohs(udp->source), ntohs(udp->dest));            
+                return 1;
+        }
     }
     return 0;
 }
